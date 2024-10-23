@@ -1,505 +1,419 @@
-// Get the canvas and context
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-
-// Game configuration constants
+// ==============================================
+// FILE: config.js
+// Contains all game configuration and constants
+// ==============================================
 const GAME_CONFIG = {
-  GROWTH_PER_FRUIT: 3, // How much snake grows when eating a fruit
-  FRUITS_COUNT: 3, // Number of fruits on screen at once
-  INITIAL_TAIL_LENGTH: 4, // Starting tail length
-  SPEED_BOOST_DURATION: 3000, // Speed boost duration in milliseconds
-  NORMAL_SPEED: 150, // Normal game speed
-  BOOST_SPEED: 80, // Boosted game speed
-  LASER_SPEED: 0.2, // Speed of laser projectile (reduced for slower movement)
+    GROWTH_PER_FRUIT: 3,
+    FRUITS_COUNT: 3,
+    INITIAL_TAIL_LENGTH: 4,
+    SPEED_BOOST_DURATION: 3000,
+    NORMAL_SPEED: 150,
+    BOOST_SPEED: 80,
+    LASER_SPEED: 0.2,
+    GRID_SIZE: 20,
 };
 
-// Set up the game variables
-const gridSize = 20;
-const tileCount = canvas.width / gridSize;
+// ==============================================
+// FILE: gameState.js
+// Contains game state management and initialization
+// ==============================================
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const tileCount = canvas.width / GAME_CONFIG.GRID_SIZE;
+
 let lastTime = 0;
 let lastMoveTime1 = 0;
 let lastMoveTime2 = 0;
-
-let player1 = {
-  x: 5,
-  y: 5,
-  vx: 0,
-  vy: 0,
-  tail: [{ x: 5, y: 5 }],
-  maxTail: GAME_CONFIG.INITIAL_TAIL_LENGTH,
-  color: "green",
-  score: 0,
-  speedBoostEnd: 0,
-  currentSpeed: GAME_CONFIG.NORMAL_SPEED,
-  hasLaser: false,
-  laser: null,
-};
-
-let player2 = {
-  x: tileCount - 5,
-  y: tileCount - 5,
-  vx: 0,
-  vy: 0,
-  tail: [{ x: tileCount - 5, y: tileCount - 5 }],
-  maxTail: GAME_CONFIG.INITIAL_TAIL_LENGTH,
-  color: "blue",
-  score: 0,
-  speedBoostEnd: 0,
-  currentSpeed: GAME_CONFIG.NORMAL_SPEED,
-  hasLaser: false,
-  laser: null,
-};
-
-// Array to store multiple fruits
+let gameOver = false;
 let fruits = [];
 
-let gameOver = false;
+// Player state initialization
+const createPlayer = (x, y, color) => ({
+    x,
+    y,
+    vx: 0,
+    vy: 0,
+    tail: [{ x, y }],
+    maxTail: GAME_CONFIG.INITIAL_TAIL_LENGTH,
+    color,
+    score: 0,
+    speedBoostEnd: 0,
+    currentSpeed: GAME_CONFIG.NORMAL_SPEED,
+    hasLaser: false,
+    laser: null,
+    lastVx: 0,
+    lastVy: 0
+});
 
-// Load max scores from localStorage
+let player1 = createPlayer(5, 5, "green");
+let player2 = createPlayer(tileCount - 5, tileCount - 5, "blue");
+
+// ==============================================
+// FILE: powerUps.js
+// Handles power-ups and special abilities
+// ==============================================
+function updateSpeedBoosts(currentTime) {
+    [player1, player2].forEach(player => {
+        if (player.speedBoostEnd > 0 && currentTime > player.speedBoostEnd) {
+            player.speedBoostEnd = 0;
+            player.currentSpeed = GAME_CONFIG.NORMAL_SPEED;
+        }
+    });
+}
+
+function shootLaser(player) {
+    if (player.hasLaser && !player.laser) {
+        player.hasLaser = false;
+        player.laser = {
+            x: player.x,
+            y: player.y,
+            vx: player.vx || player.lastVx || 1,
+            vy: player.vy || player.lastVy || 0,
+        };
+    }
+}
+
+function updateLasers() {
+    [player1, player2].forEach((player, index) => {
+        const opponent = index === 0 ? player2 : player1;
+        if (player.laser) {
+            player.laser.x += player.laser.vx * GAME_CONFIG.LASER_SPEED;
+            player.laser.y += player.laser.vy * GAME_CONFIG.LASER_SPEED;
+
+            if (isOutOfBounds(player.laser)) {
+                player.laser = null;
+            } else if (checkLaserCollision(player.laser, opponent)) {
+                endGame(`${player.color.charAt(0).toUpperCase() + player.color.slice(1)} Player Wins!`);
+            }
+        }
+    });
+}
+
+// ==============================================
+// FILE: collisionDetection.js
+// Handles all collision-related logic
+// ==============================================
+function isOutOfBounds(object) {
+    return object.x < 0 || object.x >= tileCount || object.y < 0 || object.y >= tileCount;
+}
+
+function checkLaserCollision(laser, player) {
+    const laserX = Math.floor(laser.x);
+    const laserY = Math.floor(laser.y);
+    return player.tail.slice(0, 3).some(segment => 
+        segment.x === laserX && segment.y === laserY
+    );
+}
+
+function checkCollision(player, opponent) {
+    if (player.vx === 0 && player.vy === 0) return;
+
+    // Self-collision
+    if (player.tail.slice(1).some(segment => 
+        player.x === segment.x && player.y === segment.y
+    )) {
+        endGame(`${opponent.color.charAt(0).toUpperCase() + opponent.color.slice(1)} Player Wins!`);
+        return;
+    }
+
+    // Opponent collision
+    if (opponent.tail.some(segment => 
+        player.x === segment.x && player.y === segment.y
+    )) {
+        endGame(`${opponent.color.charAt(0).toUpperCase() + opponent.color.slice(1)} Player Wins!`);
+    }
+}
+
+// ==============================================
+// FILE: fruitManager.js
+// Handles fruit spawning and collection
+// ==============================================
+function isOnSnake(x, y, player) {
+    return player.tail.some(segment => segment.x === x && segment.y === y);
+}
+
+function isOnFruit(x, y) {
+    return fruits.some(fruit => fruit.x === x && fruit.y === y);
+}
+
+function spawnFruit() {
+    while (fruits.length < GAME_CONFIG.FRUITS_COUNT) {
+        const rand = Math.random();
+        const newFruit = {
+            x: Math.floor(Math.random() * tileCount),
+            y: Math.floor(Math.random() * tileCount),
+            type: rand < 0.1 ? "speed" : rand < 0.2 ? "laser" : "regular"
+        };
+
+        if (!isOnSnake(newFruit.x, newFruit.y, player1) &&
+            !isOnSnake(newFruit.x, newFruit.y, player2) &&
+            !isOnFruit(newFruit.x, newFruit.y)) {
+            fruits.push(newFruit);
+        }
+    }
+}
+
+// ==============================================
+// FILE: playerMovement.js
+// Handles player movement and fruit collection
+// ==============================================
+function movePlayer(player) {
+    if (player.vx === 0 && player.vy === 0) return;
+
+    if (player.vx !== 0 || player.vy !== 0) {
+        player.lastVx = player.vx;
+        player.lastVy = player.vy;
+    }
+
+    player.x += player.vx;
+    player.y += player.vy;
+
+    // Wrap around edges
+    if (player.x < 0) player.x = tileCount - 1;
+    if (player.x >= tileCount) player.x = 0;
+    if (player.y < 0) player.y = tileCount - 1;
+    if (player.y >= tileCount) player.y = 0;
+
+    player.tail.unshift({ x: player.x, y: player.y });
+    while (player.tail.length > player.maxTail) {
+        player.tail.pop();
+    }
+
+    // Fruit collection
+    for (let i = fruits.length - 1; i >= 0; i--) {
+        if (player.x === fruits[i].x && player.y === fruits[i].y) {
+            handleFruitCollection(player, fruits[i]);
+            fruits.splice(i, 1);
+            spawnFruit();
+        }
+    }
+}
+
+function handleFruitCollection(player, fruit) {
+    switch (fruit.type) {
+        case "speed":
+            player.speedBoostEnd = performance.now() + GAME_CONFIG.SPEED_BOOST_DURATION;
+            player.currentSpeed = GAME_CONFIG.BOOST_SPEED;
+            break;
+        case "laser":
+            player.hasLaser = true;
+            break;
+        default:
+            player.maxTail += GAME_CONFIG.GROWTH_PER_FRUIT;
+            player.score++;
+            updateScore();
+    }
+}
+
+// ==============================================
+// FILE: renderer.js
+// Handles all game rendering
+// ==============================================
+function drawPlayer(player) {
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
+
+    // Draw tail
+    player.tail.forEach(segment => {
+        ctx.fillStyle = player.color;
+        ctx.fillRect(
+            segment.x * GAME_CONFIG.GRID_SIZE,
+            segment.y * GAME_CONFIG.GRID_SIZE,
+            GAME_CONFIG.GRID_SIZE - 2,
+            GAME_CONFIG.GRID_SIZE - 2
+        );
+        ctx.strokeRect(
+            segment.x * GAME_CONFIG.GRID_SIZE,
+            segment.y * GAME_CONFIG.GRID_SIZE,
+            GAME_CONFIG.GRID_SIZE - 2,
+            GAME_CONFIG.GRID_SIZE - 2
+        );
+    });
+
+    // Draw head
+    ctx.fillStyle = player.speedBoostEnd > 0 ? "#fff" : 
+                   player.hasLaser ? "#ff0000" : "#ffff00";
+    ctx.fillRect(
+        player.tail[0].x * GAME_CONFIG.GRID_SIZE,
+        player.tail[0].y * GAME_CONFIG.GRID_SIZE,
+        GAME_CONFIG.GRID_SIZE - 2,
+        GAME_CONFIG.GRID_SIZE - 2
+    );
+    ctx.strokeRect(
+        player.tail[0].x * GAME_CONFIG.GRID_SIZE,
+        player.tail[0].y * GAME_CONFIG.GRID_SIZE,
+        GAME_CONFIG.GRID_SIZE - 2,
+        GAME_CONFIG.GRID_SIZE - 2
+    );
+}
+
+function drawFruits() {
+    fruits.forEach(fruit => {
+        if (fruit.type === "speed") {
+            ctx.font = `${GAME_CONFIG.GRID_SIZE}px Arial`;
+            ctx.fillText("⚡", fruit.x * GAME_CONFIG.GRID_SIZE, (fruit.y + 1) * GAME_CONFIG.GRID_SIZE);
+        } else if (fruit.type === "laser") {
+            ctx.font = `${GAME_CONFIG.GRID_SIZE}px Arial`;
+            ctx.fillText("🎯", fruit.x * GAME_CONFIG.GRID_SIZE, (fruit.y + 1) * GAME_CONFIG.GRID_SIZE);
+        } else {
+            ctx.fillStyle = "red";
+            ctx.fillRect(
+                fruit.x * GAME_CONFIG.GRID_SIZE,
+                fruit.y * GAME_CONFIG.GRID_SIZE,
+                GAME_CONFIG.GRID_SIZE - 2,
+                GAME_CONFIG.GRID_SIZE - 2
+            );
+        }
+    });
+}
+
+function drawLasers() {
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
+
+    [player1, player2].forEach(player => {
+        if (player.laser) {
+            ctx.fillStyle = player === player1 ? "#90EE90" : "#87CEEB";
+            ctx.fillRect(
+                Math.floor(player.laser.x) * GAME_CONFIG.GRID_SIZE,
+                Math.floor(player.laser.y) * GAME_CONFIG.GRID_SIZE,
+                GAME_CONFIG.GRID_SIZE - 2,
+                GAME_CONFIG.GRID_SIZE - 2
+            );
+        }
+    });
+}
+
+// ==============================================
+// FILE: scoreManager.js
+// Handles score tracking and updates
+// ==============================================
+const player1ScoreEl = document.getElementById("player1-score");
+const player2ScoreEl = document.getElementById("player2-score");
 let maxScore1 = parseInt(localStorage.getItem("maxScore1")) || 0;
 let maxScore2 = parseInt(localStorage.getItem("maxScore2")) || 0;
 
-// Scoreboard elements
-const player1ScoreEl = document.getElementById("player1-score");
-const player2ScoreEl = document.getElementById("player2-score");
+function updateScore() {
+    if (player1.score > maxScore1) {
+        maxScore1 = player1.score;
+        localStorage.setItem("maxScore1", maxScore1);
+    }
+    if (player2.score > maxScore2) {
+        maxScore2 = player2.score;
+        localStorage.setItem("maxScore2", maxScore2);
+    }
+
+    player1ScoreEl.textContent = `Player 1 Score: ${player1.score} (Best: ${maxScore1})`;
+    player2ScoreEl.textContent = `Player 2 Score: ${player2.score} (Best: ${maxScore2})`;
+}
+
+// ==============================================
+// FILE: gameManager.js
+// Handles game state management and main loop
+// ==============================================
 const gameOverEl = document.getElementById("game-over");
 const gameOverMessageEl = document.getElementById("game-over-message");
 const restartButton = document.getElementById("restart-button");
 
-// Game loop
 function game(currentTime) {
-  if (gameOver) return;
+    if (gameOver) return;
 
-  requestAnimationFrame(game);
+    requestAnimationFrame(game);
+    updateSpeedBoosts(currentTime);
 
-  // Update speed boosts
-  updateSpeedBoosts(currentTime);
-
-  // Move player 1
-  if (currentTime - lastMoveTime1 >= player1.currentSpeed) {
-    movePlayer(player1);
-    checkCollision(player1, player2);
-    lastMoveTime1 = currentTime;
-  }
-
-  // Move player 2
-  if (currentTime - lastMoveTime2 >= player2.currentSpeed) {
-    movePlayer(player2);
-    checkCollision(player2, player1);
-    lastMoveTime2 = currentTime;
-  }
-
-  // Update lasers
-  updateLasers();
-
-  // Render frame
-  if (currentTime - lastTime >= 16) {
-    // ~60 FPS
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawFruits();
-    drawPlayer(player1);
-    drawPlayer(player2);
-    drawLasers();
-    lastTime = currentTime;
-  }
-}
-
-function updateSpeedBoosts(currentTime) {
-  // Check and update player speed boosts
-  if (player1.speedBoostEnd > 0 && currentTime > player1.speedBoostEnd) {
-    player1.speedBoostEnd = 0;
-    player1.currentSpeed = GAME_CONFIG.NORMAL_SPEED;
-  }
-  if (player2.speedBoostEnd > 0 && currentTime > player2.speedBoostEnd) {
-    player2.speedBoostEnd = 0;
-    player2.currentSpeed = GAME_CONFIG.NORMAL_SPEED;
-  }
-}
-
-function updateLasers() {
-  // Update player 1 laser
-  if (player1.laser) {
-    player1.laser.x += player1.laser.vx * GAME_CONFIG.LASER_SPEED;
-    player1.laser.y += player1.laser.vy * GAME_CONFIG.LASER_SPEED;
-
-    // Check wall collision
-    if (
-      player1.laser.x < 0 ||
-      player1.laser.x >= tileCount ||
-      player1.laser.y < 0 ||
-      player1.laser.y >= tileCount
-    ) {
-      player1.laser = null;
+    if (currentTime - lastMoveTime1 >= player1.currentSpeed) {
+        movePlayer(player1);
+        checkCollision(player1, player2);
+        lastMoveTime1 = currentTime;
     }
-    // Check player 2 collision with improved hit detection
-    else if (checkLaserCollision(player1.laser, player2)) {
-      endGame("Green Player Wins!");
+
+    if (currentTime - lastMoveTime2 >= player2.currentSpeed) {
+        movePlayer(player2);
+        checkCollision(player2, player1);
+        lastMoveTime2 = currentTime;
     }
-  }
 
-  // Update player 2 laser
-  if (player2.laser) {
-    player2.laser.x += player2.laser.vx * GAME_CONFIG.LASER_SPEED;
-    player2.laser.y += player2.laser.vy * GAME_CONFIG.LASER_SPEED;
+    updateLasers();
 
-    // Check wall collision
-    if (
-      player2.laser.x < 0 ||
-      player2.laser.x >= tileCount ||
-      player2.laser.y < 0 ||
-      player2.laser.y >= tileCount
-    ) {
-      player2.laser = null;
+    if (currentTime - lastTime >= 16) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawFruits();
+        drawPlayer(player1);
+        drawPlayer(player2);
+        drawLasers();
+        lastTime = currentTime;
     }
-    // Check player 1 collision with improved hit detection
-    else if (checkLaserCollision(player2.laser, player1)) {
-      endGame("Blue Player Wins!");
-    }
-  }
 }
 
-function checkLaserCollision(laser, player) {
-  const laserX = Math.floor(laser.x);
-  const laserY = Math.floor(laser.y);
-
-  // Check collision only with head and next 2 segments
-  for (let i = 0; i < Math.min(3, player.tail.length); i++) {
-    const segment = player.tail[i];
-    if (segment.x === laserX && segment.y === laserY) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function shootLaser(player) {
-  if (player.hasLaser && !player.laser) {
-    player.hasLaser = false;
-    player.laser = {
-      x: player.x,
-      y: player.y,
-      vx: player.vx || player.lastVx || 1, // Use last direction if not moving
-      vy: player.vy || player.lastVy || 0,
-    };
-  }
-}
-
-function drawLasers() {
-  ctx.strokeStyle = "#fff";
-  ctx.lineWidth = 2;
-
-  if (player1.laser) {
-    ctx.fillStyle = "#90EE90"; // Light green - between green and yellow
-    ctx.fillRect(
-      Math.floor(player1.laser.x) * gridSize,
-      Math.floor(player1.laser.y) * gridSize,
-      gridSize - 2,
-      gridSize - 2
-    );
-  }
-
-  if (player2.laser) {
-    ctx.fillStyle = "#87CEEB"; // Light blue - between blue and yellow
-    ctx.fillRect(
-      Math.floor(player2.laser.x) * gridSize,
-      Math.floor(player2.laser.y) * gridSize,
-      gridSize - 2,
-      gridSize - 2
-    );
-  }
-}
-
-// Move player
-function movePlayer(player) {
-  // Only move if there's velocity
-  if (player.vx === 0 && player.vy === 0) return;
-
-  // Store last direction for laser
-  if (player.vx !== 0 || player.vy !== 0) {
-    player.lastVx = player.vx;
-    player.lastVy = player.vy;
-  }
-
-  player.x += player.vx;
-  player.y += player.vy;
-
-  // Wrap around the edges
-  if (player.x < 0) player.x = tileCount - 1;
-  if (player.x >= tileCount) player.x = 0;
-  if (player.y < 0) player.y = tileCount - 1;
-  if (player.y >= tileCount) player.y = 0;
-
-  // Add new position to the tail
-  player.tail.unshift({ x: player.x, y: player.y });
-
-  // Keep tail at proper length
-  while (player.tail.length > player.maxTail) {
-    player.tail.pop();
-  }
-
-  // Check if player eats any fruit
-  for (let i = fruits.length - 1; i >= 0; i--) {
-    if (player.x === fruits[i].x && player.y === fruits[i].y) {
-      if (fruits[i].type === "speed") {
-        player.speedBoostEnd =
-          performance.now() + GAME_CONFIG.SPEED_BOOST_DURATION;
-        player.currentSpeed = GAME_CONFIG.BOOST_SPEED;
-      } else if (fruits[i].type === "laser") {
-        player.hasLaser = true;
-      } else {
-        player.maxTail += GAME_CONFIG.GROWTH_PER_FRUIT;
-        player.score++;
-        updateScore();
-      }
-      fruits.splice(i, 1); // Remove eaten fruit
-      spawnFruit(); // Spawn new fruit
-    }
-  }
-}
-
-// Draw player
-function drawPlayer(player) {
-  ctx.strokeStyle = "#fff";
-  ctx.lineWidth = 2;
-
-  // Draw tail segments with border
-  for (let i = player.tail.length - 1; i >= 0; i--) {
-    const segment = player.tail[i];
-    ctx.fillStyle = player.color;
-    ctx.fillRect(
-      segment.x * gridSize,
-      segment.y * gridSize,
-      gridSize - 2,
-      gridSize - 2
-    );
-    ctx.strokeRect(
-      segment.x * gridSize,
-      segment.y * gridSize,
-      gridSize - 2,
-      gridSize - 2
-    );
-  }
-
-  // Draw head with different color based on power-ups
-  ctx.fillStyle =
-    player.speedBoostEnd > 0 ? "#fff" : player.hasLaser ? "#ff0000" : "#ffff00";
-  ctx.fillRect(
-    player.tail[0].x * gridSize,
-    player.tail[0].y * gridSize,
-    gridSize - 2,
-    gridSize - 2
-  );
-  ctx.strokeRect(
-    player.tail[0].x * gridSize,
-    player.tail[0].y * gridSize,
-    gridSize - 2,
-    gridSize - 2
-  );
-}
-
-// Draw fruits
-function drawFruits() {
-  for (let fruit of fruits) {
-    if (fruit.type === "speed") {
-      // Draw speed fruit with emoji
-      ctx.font = `${gridSize}px Arial`;
-      ctx.fillText("⚡", fruit.x * gridSize, (fruit.y + 1) * gridSize);
-    } else if (fruit.type === "laser") {
-      // Draw laser fruit with different emoji
-      ctx.font = `${gridSize}px Arial`;
-      ctx.fillText("🎯", fruit.x * gridSize, (fruit.y + 1) * gridSize);
-    } else {
-      // Draw regular fruit
-      ctx.fillStyle = "red";
-      ctx.fillRect(
-        fruit.x * gridSize,
-        fruit.y * gridSize,
-        gridSize - 2,
-        gridSize - 2
-      );
-    }
-  }
-}
-
-// Spawn new fruit
-function spawnFruit() {
-  while (fruits.length < GAME_CONFIG.FRUITS_COUNT) {
-    const rand = Math.random();
-    const newFruit = {
-      x: Math.floor(Math.random() * tileCount),
-      y: Math.floor(Math.random() * tileCount),
-      type:
-        rand < 0.1
-          ? "speed"
-          : rand < 0.2
-          ? "laser"
-          : "regular", // 10% speed, 10% laser, 80% regular
-    };
-
-    // Ensure the fruit doesn't spawn on a snake or another fruit
-    if (
-      !isOnSnake(newFruit.x, newFruit.y, player1) &&
-      !isOnSnake(newFruit.x, newFruit.y, player2) &&
-      !isOnFruit(newFruit.x, newFruit.y)
-    ) {
-      fruits.push(newFruit);
-    }
-  }
-}
-
-// Check if position is on any existing fruit
-function isOnFruit(x, y) {
-  return fruits.some((fruit) => fruit.x === x && fruit.y === y);
-}
-
-// Check if position is on a snake
-function isOnSnake(x, y, player) {
-  return player.tail.some((segment) => segment.x === x && segment.y === y);
-}
-
-// Check collision with self and opponent
-function checkCollision(player, opponent) {
-  // Skip collision check if not moving
-  if (player.vx === 0 && player.vy === 0) return;
-
-  // Self-collision (skip head)
-  for (let i = 1; i < player.tail.length; i++) {
-    if (player.x === player.tail[i].x && player.y === player.tail[i].y) {
-      endGame(
-        opponent === player
-          ? "Draw"
-          : `${
-              opponent.color.charAt(0).toUpperCase() + opponent.color.slice(1)
-            } Player Wins!`
-      );
-      return;
-    }
-  }
-
-  // Collision with opponent
-  for (let segment of opponent.tail) {
-    if (player.x === segment.x && player.y === segment.y) {
-      endGame(
-        `${
-          opponent.color.charAt(0).toUpperCase() + opponent.color.slice(1)
-        } Player Wins!`
-      );
-      return;
-    }
-  }
-}
-
-// Update scoreboard
-function updateScore() {
-  // Update max scores
-  if (player1.score > maxScore1) {
-    maxScore1 = player1.score;
-    localStorage.setItem("maxScore1", maxScore1);
-  }
-  if (player2.score > maxScore2) {
-    maxScore2 = player2.score;
-    localStorage.setItem("maxScore2", maxScore2);
-  }
-
-  player1ScoreEl.textContent = `Player 1 Score: ${player1.score} (Best: ${maxScore1})`;
-  player2ScoreEl.textContent = `Player 2 Score: ${player2.score} (Best: ${maxScore2})`;
-}
-
-// End game
 function endGame(message) {
-  gameOver = true;
-  gameOverEl.style.display = "block";
-  gameOverMessageEl.textContent = message;
+    gameOver = true;
+    gameOverEl.style.display = "block";
+    gameOverMessageEl.textContent = message;
 }
 
-// Restart game
-restartButton.addEventListener("click", () => {
-  resetGame();
-  gameOverEl.style.display = "none";
-  gameOver = false;
-  requestAnimationFrame(game);
-});
-
-// Reset game state
 function resetGame() {
-  player1.x = 5;
-  player1.y = 5;
-  player1.vx = 0;
-  player1.vy = 0;
-  player1.tail = [{ x: 5, y: 5 }];
-  player1.maxTail = GAME_CONFIG.INITIAL_TAIL_LENGTH;
-  player1.score = 0;
-  player1.speedBoostEnd = 0;
-  player1.currentSpeed = GAME_CONFIG.NORMAL_SPEED;
-  player1.hasLaser = false;
-  player1.laser = null;
-
-  player2.x = tileCount - 5;
-  player2.y = tileCount - 5;
-  player2.vx = 0;
-  player2.vy = 0;
-  player2.tail = [{ x: tileCount - 5, y: tileCount - 5 }];
-  player2.maxTail = GAME_CONFIG.INITIAL_TAIL_LENGTH;
-  player2.score = 0;
-  player2.speedBoostEnd = 0;
-  player2.currentSpeed = GAME_CONFIG.NORMAL_SPEED;
-  player2.hasLaser = false;
-  player2.laser = null;
-
-  lastMoveTime1 = 0;
-  lastMoveTime2 = 0;
-  lastTime = 0;
-
-  fruits = []; // Clear existing fruits
-  spawnFruit(); // Spawn initial fruits
-  updateScore();
+    player1 = createPlayer(5, 5, "green");
+    player2 = createPlayer(tileCount - 5, tileCount - 5, "blue");
+    
+    lastMoveTime1 = 0;
+    lastMoveTime2 = 0;
+    lastTime = 0;
+    
+    fruits = [];
+    spawnFruit();
+    updateScore();
 }
 
-// Handle keyboard input
+// ==============================================
+// FILE: inputHandler.js
+// Handles keyboard input
+// ==============================================
 document.addEventListener("keydown", (e) => {
-  // Player 1 controls (Arrow Keys + Space for laser)
-  if (e.key === "ArrowLeft" && player1.vx === 0) {
-    player1.vx = -1;
-    player1.vy = 0;
-  }
-  if (e.key === "ArrowUp" && player1.vy === 0) {
-    player1.vx = 0;
-    player1.vy = -1;
-  }
-  if (e.key === "ArrowRight" && player1.vx === 0) {
-    player1.vx = 1;
-    player1.vy = 0;
-  }
-  if (e.key === "ArrowDown" && player1.vy === 0) {
-    player1.vx = 0;
-    player1.vy = 1;
-  }
-  if (e.code === "Space") {
-    shootLaser(player1);
-  }
+    const controls = {
+        player1: {
+            ArrowLeft: { vx: -1, vy: 0 },
+            ArrowUp: { vx: 0, vy: -1 },
+            ArrowRight: { vx: 1, vy: 0 },
+            ArrowDown: { vx: 0, vy: 1 },
+            Space: () => shootLaser(player1)
+        },
+        player2: {
+            a: { vx: -1, vy: 0 },
+            w: { vx: 0, vy: -1 },
+            d: { vx: 1, vy: 0 },
+            s: { vx: 0, vy: 1 },
+            e: () => shootLaser(player2)
+        }
+    };
 
-  // Player 2 controls (WASD + E for laser)
-  if (e.key === "a" && player2.vx === 0) {
-    player2.vx = -1;
-    player2.vy = 0;
-  }
-  if (e.key === "w" && player2.vy === 0) {
-    player2.vx = 0;
-    player2.vy = -1;
-  }
-  if (e.key === "d" && player2.vx === 0) {
-    player2.vx = 1;
-    player2.vy = 0;
-  }
-  if (e.key === "s" && player2.vy === 0) {
-    player2.vx = 0;
-    player2.vy = 1;
-  }
-  if (e.key === "e") {
-    shootLaser(player2);
-  }
+    if (controls.player1[e.key]) {
+        if (typeof controls.player1[e.key] === 'function') {
+            controls.player1[e.key]();
+        } else if (player1.vx !== -controls.player1[e.key].vx && 
+                   player1.vy !== -controls.player1[e.key].vy) {
+            Object.assign(player1, controls.player1[e.key]);
+        }
+    }
+
+    if (controls.player2[e.key]) {
+        if (typeof controls.player2[e.key] === 'function') {
+            controls.player2[e.key]();
+        } else if (player2.vx !== -controls.player2[e.key].vx && 
+                   player2.vy !== -controls.player2[e.key].vy) {
+            Object.assign(player2, controls.player2[e.key]);
+        }
+    }
 });
 
-// Start the game
+// ==============================================
+// Initialize game
+// ==============================================
+restartButton.addEventListener("click", () => {
+    resetGame();
+    gameOverEl.style.display = "none";
+    gameOver = false;
+    requestAnimationFrame(game);
+});
+
 resetGame();
 requestAnimationFrame(game);
