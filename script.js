@@ -64,11 +64,18 @@ function updateSpeedBoosts(currentTime) {
 function shootLaser(player) {
     if (player.hasLaser && !player.laser) {
         player.hasLaser = false;
+        // Prioritize horizontal movement over vertical for laser direction
+        let vx = player.vx || player.lastVx;
+        let vy = 0;
+        // Only use vertical if there's no horizontal movement
+        if (vx === 0) {
+            vy = player.vy || player.lastVy || -1;
+        }
         player.laser = {
             x: player.x,
             y: player.y,
-            vx: player.vx || player.lastVx || 1,
-            vy: player.vy || player.lastVy || 0,
+            vx: vx || 1, // Default to right if no direction
+            vy: vy
         };
     }
 }
@@ -157,7 +164,7 @@ function spawnFruit() {
 // FILE: playerMovement.js
 // Handles player movement and fruit collection
 // ==============================================
-function movePlayer(player) {
+function movePlayer(player, opponent) {
     if (player.vx === 0 && player.vy === 0) return;
 
     if (player.vx !== 0 || player.vy !== 0) {
@@ -178,6 +185,9 @@ function movePlayer(player) {
     while (player.tail.length > player.maxTail) {
         player.tail.pop();
     }
+
+    // Check collisions after movement
+    checkCollision(player, opponent);
 
     // Fruit collection
     for (let i = fruits.length - 1; i >= 0; i--) {
@@ -322,14 +332,12 @@ function game(currentTime) {
     updateSpeedBoosts(currentTime);
 
     if (currentTime - lastMoveTime1 >= player1.currentSpeed) {
-        movePlayer(player1);
-        checkCollision(player1, player2);
+        movePlayer(player1, player2);
         lastMoveTime1 = currentTime;
     }
 
     if (currentTime - lastMoveTime2 >= player2.currentSpeed) {
-        movePlayer(player2);
-        checkCollision(player2, player1);
+        movePlayer(player2, player1);
         lastMoveTime2 = currentTime;
     }
 
