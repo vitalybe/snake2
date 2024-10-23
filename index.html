@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Local Multiplayer Snake Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <h1>Local Multiplayer Snake Game</h1>
+    <div id="scoreboard">
+        <div id="player1-score">Player 1 Score: 0</div>
+        <div id="player2-score">Player 2 Score: 0</div>
+    </div>
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
+    <div id="controls">
+        <h2>Controls</h2>
+        <p><strong>Player 1 (Green Snake):</strong> Arrow Keys</p>
+        <p><strong>Player 2 (Blue Snake):</strong> W (Up), A (Left), S (Down), D (Right)</p>
+    </div>
+    <div id="game-over" style="display: none;">
+        <h2 id="game-over-message"></h2>
+        <button id="restart-button">Play Again</button>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
