@@ -2,6 +2,13 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
+// Game configuration constants
+const GAME_CONFIG = {
+  GROWTH_PER_FRUIT: 3,    // How much snake grows when eating a fruit
+  FRUITS_COUNT: 2,        // Number of fruits on screen at once
+  INITIAL_TAIL_LENGTH: 4  // Starting tail length
+};
+
 // Set up the game variables
 const gridSize = 20;
 const tileCount = canvas.width / gridSize;
@@ -14,7 +21,7 @@ let player1 = {
   vx: 0,
   vy: 0,
   tail: [{x: 5, y: 5}], // Initialize with starting position
-  maxTail: 4,
+  maxTail: GAME_CONFIG.INITIAL_TAIL_LENGTH,
   color: "green",
   score: 0,
 };
@@ -25,15 +32,13 @@ let player2 = {
   vx: 0,
   vy: 0,
   tail: [{x: tileCount - 5, y: tileCount - 5}], // Initialize with starting position
-  maxTail: 4,
+  maxTail: GAME_CONFIG.INITIAL_TAIL_LENGTH,
   color: "blue",
   score: 0,
 };
 
-let fruit = {
-  x: Math.floor(Math.random() * tileCount),
-  y: Math.floor(Math.random() * tileCount),
-};
+// Array to store multiple fruits
+let fruits = [];
 
 let gameOver = false;
 
@@ -62,7 +67,7 @@ function game(currentTime) {
   checkCollision(player1, player2);
   checkCollision(player2, player1);
 
-  drawFruit();
+  drawFruits();
   drawPlayer(player1);
   drawPlayer(player2);
 }
@@ -89,12 +94,15 @@ function movePlayer(player) {
     player.tail.pop();
   }
 
-  // Check if player eats the fruit
-  if (player.x === fruit.x && player.y === fruit.y) {
-    player.maxTail++;
-    player.score++;
-    updateScore();
-    spawnFruit();
+  // Check if player eats any fruit
+  for (let i = fruits.length - 1; i >= 0; i--) {
+    if (player.x === fruits[i].x && player.y === fruits[i].y) {
+      player.maxTail += GAME_CONFIG.GROWTH_PER_FRUIT;
+      player.score++;
+      updateScore();
+      fruits.splice(i, 1); // Remove eaten fruit
+      spawnFruit(); // Spawn new fruit
+    }
   }
 }
 
@@ -111,29 +119,41 @@ function drawPlayer(player) {
   }
 }
 
-// Draw fruit
-function drawFruit() {
+// Draw fruits
+function drawFruits() {
   ctx.fillStyle = "red";
-  ctx.fillRect(
-    fruit.x * gridSize,
-    fruit.y * gridSize,
-    gridSize - 2,
-    gridSize - 2
-  );
+  for (let fruit of fruits) {
+    ctx.fillRect(
+      fruit.x * gridSize,
+      fruit.y * gridSize,
+      gridSize - 2,
+      gridSize - 2
+    );
+  }
 }
 
 // Spawn new fruit
 function spawnFruit() {
-  fruit.x = Math.floor(Math.random() * tileCount);
-  fruit.y = Math.floor(Math.random() * tileCount);
+  while (fruits.length < GAME_CONFIG.FRUITS_COUNT) {
+    const newFruit = {
+      x: Math.floor(Math.random() * tileCount),
+      y: Math.floor(Math.random() * tileCount)
+    };
 
-  // Ensure the fruit doesn't spawn on a snake
-  if (
-    isOnSnake(fruit.x, fruit.y, player1) ||
-    isOnSnake(fruit.x, fruit.y, player2)
-  ) {
-    spawnFruit();
+    // Ensure the fruit doesn't spawn on a snake or another fruit
+    if (
+      !isOnSnake(newFruit.x, newFruit.y, player1) &&
+      !isOnSnake(newFruit.x, newFruit.y, player2) &&
+      !isOnFruit(newFruit.x, newFruit.y)
+    ) {
+      fruits.push(newFruit);
+    }
   }
+}
+
+// Check if position is on any existing fruit
+function isOnFruit(x, y) {
+  return fruits.some(fruit => fruit.x === x && fruit.y === y);
 }
 
 // Check if position is on a snake
@@ -201,7 +221,7 @@ function resetGame() {
   player1.vx = 0;
   player1.vy = 0;
   player1.tail = [{x: 5, y: 5}];
-  player1.maxTail = 4;
+  player1.maxTail = GAME_CONFIG.INITIAL_TAIL_LENGTH;
   player1.score = 0;
 
   player2.x = tileCount - 5;
@@ -209,10 +229,11 @@ function resetGame() {
   player2.vx = 0;
   player2.vy = 0;
   player2.tail = [{x: tileCount - 5, y: tileCount - 5}];
-  player2.maxTail = 4;
+  player2.maxTail = GAME_CONFIG.INITIAL_TAIL_LENGTH;
   player2.score = 0;
 
-  spawnFruit();
+  fruits = []; // Clear existing fruits
+  spawnFruit(); // Spawn initial fruits
   updateScore();
 }
 
