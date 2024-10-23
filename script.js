@@ -162,11 +162,14 @@ function checkLaserCollision(laser, player) {
   const laserX = Math.floor(laser.x);
   const laserY = Math.floor(laser.y);
 
-  // Check collision with any part of the snake (head or tail)
-  return player.tail.some((segment) => {
-    // Check if the laser is within the bounds of the segment
-    return segment.x === laserX && segment.y === laserY;
-  });
+  // Check collision only with head and next 2 segments
+  for (let i = 0; i < Math.min(3, player.tail.length); i++) {
+    const segment = player.tail[i];
+    if (segment.x === laserX && segment.y === laserY) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function shootLaser(player) {
@@ -186,7 +189,7 @@ function drawLasers() {
   ctx.lineWidth = 2;
 
   if (player1.laser) {
-    ctx.fillStyle = "#ff0000";
+    ctx.fillStyle = "#90EE90"; // Light green - between green and yellow
     ctx.fillRect(
       Math.floor(player1.laser.x) * gridSize,
       Math.floor(player1.laser.y) * gridSize,
@@ -196,7 +199,7 @@ function drawLasers() {
   }
 
   if (player2.laser) {
-    ctx.fillStyle = "#ff0000";
+    ctx.fillStyle = "#87CEEB"; // Light blue - between blue and yellow
     ctx.fillRect(
       Math.floor(player2.laser.x) * gridSize,
       Math.floor(player2.laser.y) * gridSize,
@@ -321,15 +324,16 @@ function drawFruits() {
 // Spawn new fruit
 function spawnFruit() {
   while (fruits.length < GAME_CONFIG.FRUITS_COUNT) {
+    const rand = Math.random();
     const newFruit = {
       x: Math.floor(Math.random() * tileCount),
       y: Math.floor(Math.random() * tileCount),
       type:
-        Math.random() < 0.2
+        rand < 0.1
           ? "speed"
-          : Math.random() < 0.4
+          : rand < 0.2
           ? "laser"
-          : "regular", // 20% speed, 20% laser, 60% regular
+          : "regular", // 10% speed, 10% laser, 80% regular
     };
 
     // Ensure the fruit doesn't spawn on a snake or another fruit
