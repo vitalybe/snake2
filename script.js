@@ -6,13 +6,16 @@ const ctx = canvas.getContext("2d");
 const GAME_CONFIG = {
   GROWTH_PER_FRUIT: 3,    // How much snake grows when eating a fruit
   FRUITS_COUNT: 2,        // Number of fruits on screen at once
-  INITIAL_TAIL_LENGTH: 4  // Starting tail length
+  INITIAL_TAIL_LENGTH: 4, // Starting tail length
+  SPEED_BOOST_DURATION: 3000, // Speed boost duration in milliseconds
+  NORMAL_SPEED: 150,     // Normal game speed
+  BOOST_SPEED: 80        // Boosted game speed
 };
 
 // Set up the game variables
 const gridSize = 20;
 const tileCount = canvas.width / gridSize;
-const gameSpeed = 150; // Controls snake speed in milliseconds
+let gameSpeed = GAME_CONFIG.NORMAL_SPEED; // Controls snake speed in milliseconds
 let lastTime = 0;
 
 let player1 = {
@@ -20,10 +23,11 @@ let player1 = {
   y: 5,
   vx: 0,
   vy: 0,
-  tail: [{x: 5, y: 5}], // Initialize with starting position
+  tail: [{x: 5, y: 5}],
   maxTail: GAME_CONFIG.INITIAL_TAIL_LENGTH,
   color: "green",
   score: 0,
+  speedBoostEnd: 0
 };
 
 let player2 = {
@@ -31,16 +35,21 @@ let player2 = {
   y: tileCount - 5,
   vx: 0,
   vy: 0,
-  tail: [{x: tileCount - 5, y: tileCount - 5}], // Initialize with starting position
+  tail: [{x: tileCount - 5, y: tileCount - 5}],
   maxTail: GAME_CONFIG.INITIAL_TAIL_LENGTH,
   color: "blue",
   score: 0,
+  speedBoostEnd: 0
 };
 
 // Array to store multiple fruits
 let fruits = [];
 
 let gameOver = false;
+
+// Load max scores from localStorage
+let maxScore1 = parseInt(localStorage.getItem('maxScore1')) || 0;
+let maxScore2 = parseInt(localStorage.getItem('maxScore2')) || 0;
 
 // Scoreboard elements
 const player1ScoreEl = document.getElementById("player1-score");
@@ -54,6 +63,9 @@ function game(currentTime) {
   if (gameOver) return;
 
   requestAnimationFrame(game);
+
+  // Update speed boosts
+  updateSpeedBoosts(currentTime);
 
   // Control game speed
   if (currentTime - lastTime < gameSpeed) return;
@@ -70,6 +82,23 @@ function game(currentTime) {
   drawFruits();
   drawPlayer(player1);
   drawPlayer(player2);
+}
+
+function updateSpeedBoosts(currentTime) {
+  // Check and update player speed boosts
+  if (player1.speedBoostEnd > 0 && currentTime > player1.speedBoostEnd) {
+    player1.speedBoostEnd = 0;
+  }
+  if (player2.speedBoostEnd > 0 && currentTime > player2.speedBoostEnd) {
+    player2.speedBoostEnd = 0;
+  }
+
+  // Set game speed based on whether any player has active boost
+  if (player1.speedBoostEnd > 0 || player2.speedBoostEnd > 0) {
+    gameSpeed = GAME_CONFIG.BOOST_SPEED;
+  } else {
+    gameSpeed = GAME_CONFIG.NORMAL_SPEED;
+  }
 }
 
 // Move player
@@ -97,9 +126,13 @@ function movePlayer(player) {
   // Check if player eats any fruit
   for (let i = fruits.length - 1; i >= 0; i--) {
     if (player.x === fruits[i].x && player.y === fruits[i].y) {
-      player.maxTail += GAME_CONFIG.GROWTH_PER_FRUIT;
-      player.score++;
-      updateScore();
+      if (fruits[i].type === 'speed') {
+        player.speedBoostEnd = performance.now() + GAME_CONFIG.SPEED_BOOST_DURATION;
+      } else {
+        player.maxTail += GAME_CONFIG.GROWTH_PER_FRUIT;
+        player.score++;
+        updateScore();
+      }
       fruits.splice(i, 1); // Remove eaten fruit
       spawnFruit(); // Spawn new fruit
     }
@@ -108,27 +141,60 @@ function movePlayer(player) {
 
 // Draw player
 function drawPlayer(player) {
-  ctx.fillStyle = player.color;
-  for (let segment of player.tail) {
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  
+  // Draw tail segments with border
+  for (let i = player.tail.length - 1; i >= 0; i--) {
+    const segment = player.tail[i];
+    ctx.fillStyle = player.color;
     ctx.fillRect(
       segment.x * gridSize,
       segment.y * gridSize,
       gridSize - 2,
       gridSize - 2
     );
+    ctx.strokeRect(
+      segment.x * gridSize,
+      segment.y * gridSize,
+      gridSize - 2,
+      gridSize - 2
+    );
   }
+
+  // Draw head with different color
+  ctx.fillStyle = player.speedBoostEnd > 0 ? '#fff' : '#ffff00';
+  ctx.fillRect(
+    player.tail[0].x * gridSize,
+    player.tail[0].y * gridSize,
+    gridSize - 2,
+    gridSize - 2
+  );
+  ctx.strokeRect(
+    player.tail[0].x * gridSize,
+    player.tail[0].y * gridSize,
+    gridSize - 2,
+    gridSize - 2
+  );
 }
 
 // Draw fruits
 function drawFruits() {
-  ctx.fillStyle = "red";
   for (let fruit of fruits) {
-    ctx.fillRect(
-      fruit.x * gridSize,
-      fruit.y * gridSize,
-      gridSize - 2,
-      gridSize - 2
-    );
+    if (fruit.type === 'speed') {
+      // Draw speed fruit with emoji
+      ctx.font = `${gridSize}px Arial`;
+      ctx.fillText('⚡', fruit.x * gridSize, (fruit.y + 1) * gridSize);
+    } else {
+      // Draw regular fruit
+      ctx.fillStyle = "red";
+      ctx.fillRect(
+        fruit.x * gridSize,
+        fruit.y * gridSize,
+        gridSize - 2,
+        gridSize - 2
+      );
+    }
   }
 }
 
@@ -137,7 +203,8 @@ function spawnFruit() {
   while (fruits.length < GAME_CONFIG.FRUITS_COUNT) {
     const newFruit = {
       x: Math.floor(Math.random() * tileCount),
-      y: Math.floor(Math.random() * tileCount)
+      y: Math.floor(Math.random() * tileCount),
+      type: Math.random() < 0.2 ? 'speed' : 'regular' // 20% chance for speed fruit
     };
 
     // Ensure the fruit doesn't spawn on a snake or another fruit
@@ -195,8 +262,18 @@ function checkCollision(player, opponent) {
 
 // Update scoreboard
 function updateScore() {
-  player1ScoreEl.textContent = `Player 1 Score: ${player1.score}`;
-  player2ScoreEl.textContent = `Player 2 Score: ${player2.score}`;
+  // Update max scores
+  if (player1.score > maxScore1) {
+    maxScore1 = player1.score;
+    localStorage.setItem('maxScore1', maxScore1);
+  }
+  if (player2.score > maxScore2) {
+    maxScore2 = player2.score;
+    localStorage.setItem('maxScore2', maxScore2);
+  }
+
+  player1ScoreEl.textContent = `Player 1 Score: ${player1.score} (Best: ${maxScore1})`;
+  player2ScoreEl.textContent = `Player 2 Score: ${player2.score} (Best: ${maxScore2})`;
 }
 
 // End game
@@ -223,6 +300,7 @@ function resetGame() {
   player1.tail = [{x: 5, y: 5}];
   player1.maxTail = GAME_CONFIG.INITIAL_TAIL_LENGTH;
   player1.score = 0;
+  player1.speedBoostEnd = 0;
 
   player2.x = tileCount - 5;
   player2.y = tileCount - 5;
@@ -231,7 +309,9 @@ function resetGame() {
   player2.tail = [{x: tileCount - 5, y: tileCount - 5}];
   player2.maxTail = GAME_CONFIG.INITIAL_TAIL_LENGTH;
   player2.score = 0;
+  player2.speedBoostEnd = 0;
 
+  gameSpeed = GAME_CONFIG.NORMAL_SPEED;
   fruits = []; // Clear existing fruits
   spawnFruit(); // Spawn initial fruits
   updateScore();
