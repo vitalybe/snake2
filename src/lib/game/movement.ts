@@ -109,17 +109,29 @@ export function shootLaser(player: Player): void {
   if (!player || !player.hasLaser || player.laser) return;
 
   player.hasLaser = false;
-  // Prioritize horizontal movement over vertical for laser direction
-  let vx = player.vx || player.lastVx;
+  
+  // Get the last known movement direction
+  const lastHorizontal = player.vx || player.lastVx;
+  const lastVertical = player.vy || player.lastVy;
+
+  // Initialize laser velocity
+  let vx = 0;
   let vy = 0;
-  // Only use vertical if there's no horizontal movement
-  if (vx === 0) {
-    vy = player.vy || player.lastVy || -1;
+
+  // Prioritize horizontal movement
+  if (lastHorizontal !== 0) {
+    vx = lastHorizontal;
+    vy = 0;  // Ensure vertical is 0 when moving horizontally
+  } else {
+    // Only use vertical if there's no horizontal movement
+    vx = 0;  // Ensure horizontal is 0 when moving vertically
+    vy = lastVertical || -1;  // Default to up if no vertical movement
   }
+
   player.laser = {
     x: player.x,
     y: player.y,
-    vx: vx || 1, // Default to right if no direction
-    vy: vy,
+    vx,
+    vy,
   };
 }
