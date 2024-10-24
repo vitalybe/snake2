@@ -26,7 +26,7 @@
     updateSpeedBoosts(currentTime, [$player1!, $player2!]);
 
     if (currentTime - $lastMoveTime1 >= $player1!.currentSpeed) {
-      movePlayer($player1!, $player2!);
+      movePlayer($player1!);
       lastMoveTime1.set(currentTime);
 
       if (checkCollision($player1!, $player2!)) {
@@ -47,7 +47,7 @@
     }
 
     if (currentTime - $lastMoveTime2 >= $player2!.currentSpeed) {
-      movePlayer($player2!, $player1!);
+      movePlayer($player2!); 
       lastMoveTime2.set(currentTime);
 
       if (checkCollision($player2!, $player1!)) {

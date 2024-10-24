@@ -24,7 +24,7 @@ export function handlePlayerMovement(player: Player, movement: { vx: number; vy:
   return false;
 }
 
-export function movePlayer(player: Player, opponent: Player): void {
+export function movePlayer(player: Player): void {
   if (!player || (player.vx === 0 && player.vy === 0)) return;
 
   // Store the last movement direction
