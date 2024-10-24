@@ -114,12 +114,12 @@
 </main>
 
 <style>
+
   main {
     text-align: center;
     font-family: Arial, sans-serif;
     background-color: #222;
     color: #fff;
-    min-height: 100vh;
     padding: 20px;
   }
 
