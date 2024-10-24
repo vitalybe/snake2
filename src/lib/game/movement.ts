@@ -22,11 +22,17 @@ export function handlePlayerMovement(player: Player, movement: { vx: number; vy:
 export function movePlayer(player: Player, opponent: Player): void {
   if (!player || (player.vx === 0 && player.vy === 0)) return;
 
+  // Store the last movement direction before updating
   if (player.vx !== 0 || player.vy !== 0) {
     player.lastVx = player.vx;
     player.lastVy = player.vy;
   }
 
+  // Store previous position
+  const prevX = player.x;
+  const prevY = player.y;
+
+  // Update position
   player.x += player.vx;
   player.y += player.vy;
 
@@ -36,31 +42,39 @@ export function movePlayer(player: Player, opponent: Player): void {
   if (player.y < 0) player.y = tileCount - 1;
   if (player.y >= tileCount) player.y = 0;
 
-  player.tail.unshift({ x: player.x, y: player.y });
-  while (player.tail.length > player.maxTail) {
-    player.tail.pop();
+  // Only add new position to tail if we actually moved
+  if (prevX !== player.x || prevY !== player.y) {
+    // Remove the last tail segment before adding the new position
+    // This creates a gap that prevents instant collisions during turns
+    if (player.tail.length >= player.maxTail) {
+      player.tail.pop();
+    }
+    
+    // Add new head position
+    player.tail.unshift({ x: player.x, y: player.y });
   }
 }
 
 export function checkCollision(player: Player, opponent: Player): boolean {
   if (!player || !opponent || (player.vx === 0 && player.vy === 0)) return false;
 
-  // Self-collision
-  if (
-    player.tail
-      .slice(1)
-      .some((segment) => player.x === segment.x && player.y === segment.y)
-  ) {
-    return true;
+  // Skip checking the head and next segment to prevent self-collisions during turns
+  const COLLISION_BUFFER = 3;
+  const headPosition = { x: player.x, y: player.y };
+
+  // Self-collision - skip the first few segments
+  for (let i = COLLISION_BUFFER; i < player.tail.length; i++) {
+    const segment = player.tail[i];
+    if (headPosition.x === segment.x && headPosition.y === segment.y) {
+      return true;
+    }
   }
 
-  // Opponent collision
-  if (
-    opponent.tail.some(
-      (segment) => player.x === segment.x && player.y === segment.y
-    )
-  ) {
-    return true;
+  // Opponent collision - check all segments
+  for (const segment of opponent.tail) {
+    if (headPosition.x === segment.x && headPosition.y === segment.y) {
+      return true;
+    }
   }
 
   return false;
