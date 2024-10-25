@@ -3,6 +3,7 @@
   import { createEventDispatcher } from 'svelte';
 
   export let message: string = '';
+  export let showMenu: boolean = false;
   const dispatch = createEventDispatcher();
 
   function handleRestart() {
@@ -10,7 +11,7 @@
   }
 </script>
 
-<div id="game-over" style="display: {$gameOver ? 'block' : 'none'}">
+<div id="game-over" style="display: {$gameOver && !showMenu ? 'block' : 'none'}">
   <h2 id="game-over-message">{message}</h2>
   <button id="restart-button" on:click={handleRestart}>Play Again</button>
 </div>
