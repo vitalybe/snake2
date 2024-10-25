@@ -4,7 +4,7 @@
   import Scoreboard from '$lib/components/Scoreboard.svelte';
   import GameOver from '$lib/components/GameOver.svelte';
   import GameMenu from '$lib/components/GameMenu.svelte';
-  import { resetGame, player1, player2, gameOver, lastMoveTime1, lastMoveTime2, fruits, spawnFruit } from '$lib/stores/game';
+  import { resetGame, player1, player2, gameOver, lastMoveTime1, lastMoveTime2, fruits, spawnFruit, playerName } from '$lib/stores/game';
   import { handlePlayerMovement, movePlayer, checkCollision, updateLasers, shootLaser } from '$lib/game/movement';
   import { updateSpeedBoosts, checkFruitCollisions, handleFruitCollection } from '$lib/game/powerups';
   import type { Fruit } from '$lib/types';
@@ -23,8 +23,9 @@
     gameStarted = false;
   }
 
-  function handleStart() {
+  function handleStart(event: CustomEvent) {
     gameStarted = true;
+    playerName.set(event.detail.playerName);
     resetGame();
     requestAnimationFrame(gameLoop);
   }

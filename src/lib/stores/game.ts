@@ -10,10 +10,11 @@ export const lastTime = writable(0);
 export const lastMoveTime1 = writable(0);
 export const lastMoveTime2 = writable(0);
 export const gameState = writable<'menu' | 'playing' | 'gameOver'>('menu');
+export const playerName = writable<string | null>(null);
 
 export const tileCount = 600 / GAME_CONFIG.GRID_SIZE;
 
-export function createPlayer(x: number, y: number, color: string): Player {
+export function createPlayer(x: number, y: number, color: string, name: string): Player {
   return {
     x,
     y,
@@ -30,6 +31,7 @@ export function createPlayer(x: number, y: number, color: string): Player {
     lastVx: 0,
     lastVy: 0,
     controls: {},
+    name,
   };
 }
 
@@ -84,7 +86,7 @@ export function spawnFruit(): void {
 }
 
 export function resetGame(): void {
-  const p1 = createPlayer(5, 5, "green");
+  const p1 = createPlayer(5, 5, "green", "Player 1");
   p1.controls = {
     ArrowLeft: { vx: -1, vy: 0 },
     ArrowUp: { vx: 0, vy: -1 },
@@ -93,7 +95,7 @@ export function resetGame(): void {
     " ": "shoot", // Space key
   };
 
-  const p2 = createPlayer(tileCount - 5, tileCount - 5, "blue");
+  const p2 = createPlayer(tileCount - 5, tileCount - 5, "blue", "Player 2");
   p2.controls = {
     a: { vx: -1, vy: 0 },
     w: { vx: 0, vy: -1 },
