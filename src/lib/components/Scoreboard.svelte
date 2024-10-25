@@ -2,32 +2,39 @@
   import { onMount } from 'svelte';
   import { player1, player2 } from '../stores/game';
 
-  let maxScore1 = 0;
-  let maxScore2 = 0;
+  let maxScores: { [key: string]: number } = {};
 
   onMount(() => {
-    maxScore1 = parseInt(localStorage.getItem("maxScore1") || "0");
-    maxScore2 = parseInt(localStorage.getItem("maxScore2") || "0");
+    const storedScores = localStorage.getItem("maxScores");
+    if (storedScores) {
+      maxScores = JSON.parse(storedScores);
+    }
   });
 
   $: {
-    if (typeof window !== 'undefined' && $player1 && $player1.score > maxScore1) {
-      maxScore1 = $player1.score;
-      localStorage.setItem("maxScore1", maxScore1.toString());
+    if (typeof window !== 'undefined' && $player1) {
+      const playerName = $player1.name || "Player 1";
+      if ($player1.score > (maxScores[playerName] || 0)) {
+        maxScores[playerName] = $player1.score;
+        localStorage.setItem("maxScores", JSON.stringify(maxScores));
+      }
     }
-    if (typeof window !== 'undefined' && $player2 && $player2.score > maxScore2) {
-      maxScore2 = $player2.score;
-      localStorage.setItem("maxScore2", maxScore2.toString());
+    if (typeof window !== 'undefined' && $player2) {
+      const playerName = $player2.name || "Player 2";
+      if ($player2.score > (maxScores[playerName] || 0)) {
+        maxScores[playerName] = $player2.score;
+        localStorage.setItem("maxScores", JSON.stringify(maxScores));
+      }
     }
   }
 </script>
 
 <div id="scoreboard">
   <div id="player2-score">
-    Player 2 Score: {$player2?.score ?? 0} (Best: {maxScore2})
+    {($player2?.name || "Player 2")} Score: {$player2?.score ?? 0} (Best: {maxScores[$player2?.name || "Player 2"] || 0})
   </div>
   <div id="player1-score">
-    Player 1 Score: {$player1?.score ?? 0} (Best: {maxScore1})
+    {($player1?.name || "Player 1")} Score: {$player1?.score ?? 0} (Best: {maxScores[$player1?.name || "Player 1"] || 0})
   </div>
 </div>
 

@@ -2,14 +2,16 @@
   import { createEventDispatcher } from 'svelte';
 
   const dispatch = createEventDispatcher();
+  let playerName = '';
 
   function startGame() {
-    dispatch('start');
+    dispatch('start', { playerName });
   }
 </script>
 
 <div id="game-menu">
   <h1>Snake Game</h1>
+  <input type="text" placeholder="Enter your name" bind:value={playerName} />
   <button on:click={startGame}>Start Game</button>
 </div>
 
@@ -22,6 +24,12 @@
     height: 100vh;
     background-color: rgba(0, 0, 0, 0.8);
     color: #fff;
+  }
+
+  input {
+    padding: 10px;
+    margin-bottom: 10px;
+    font-size: 16px;
   }
 
   button {
