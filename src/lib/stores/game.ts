@@ -9,6 +9,7 @@ export const player2 = writable<Player | null>(null);
 export const lastTime = writable(0);
 export const lastMoveTime1 = writable(0);
 export const lastMoveTime2 = writable(0);
+export const gameState = writable<'menu' | 'playing' | 'gameOver'>('menu');
 
 export const tileCount = 600 / GAME_CONFIG.GRID_SIZE;
 
@@ -108,5 +109,6 @@ export function resetGame(): void {
   lastTime.set(0);
   gameOver.set(false);
   fruits.set([]);
+  gameState.set('playing');
   spawnFruit();
 }
